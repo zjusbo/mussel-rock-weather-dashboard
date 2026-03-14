@@ -314,10 +314,17 @@ function fmtTick(isoStr) {
   const d = new Date(isoStr);
   if (isNaN(d)) return '';
   const h = d.getHours();
-  if (h === 0)  return [d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), '12am'];
-  if (h === 6)  return '6am';
-  if (h === 12) return '12pm';
-  if (h === 18) return '6pm';
+  if (forecastDays <= 2) {
+    // 48h: every 6 hours
+    if (h === 0)  return [d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), '12am'];
+    if (h === 6)  return '6am';
+    if (h === 12) return '12pm';
+    if (h === 18) return '6pm';
+  } else {
+    // 7-day: midnight (with date) + noon only
+    if (h === 0)  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    if (h === 12) return '12pm';
+  }
   return '';
 }
 
@@ -339,7 +346,8 @@ function wxXAxis(labels) {
         const l = labels[ctx.index];
         if (!l) return 'transparent';
         const h = new Date(l).getHours();
-        return (h === 0 || h === 6 || h === 12 || h === 18) ? GRID_COLOR : 'transparent';
+        if (forecastDays <= 2) return (h === 0 || h === 6 || h === 12 || h === 18) ? GRID_COLOR : 'transparent';
+        return (h === 0 || h === 12) ? GRID_COLOR : 'transparent';
       },
     },
   };
@@ -814,10 +822,15 @@ function buildTideChart(tide) {
     if (!str) return '';
     const d = parseNoaaUtc(str);
     const h = d.getHours();
-    if (h === 0) return [d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), '12am'];
-    if (h === 6)  return '6am';
-    if (h === 12) return '12pm';
-    if (h === 18) return '6pm';
+    if (forecastDays <= 2) {
+      if (h === 0)  return [d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }), '12am'];
+      if (h === 6)  return '6am';
+      if (h === 12) return '12pm';
+      if (h === 18) return '6pm';
+    } else {
+      if (h === 0)  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      if (h === 12) return '12pm';
+    }
     return '';
   }
 
@@ -888,7 +901,8 @@ function buildTideChart(tide) {
               const l = labels[ctx2.index];
               if (!l) return 'transparent';
               const h = parseNoaaUtc(l).getHours();
-              return (h === 0 || h === 6 || h === 12 || h === 18) ? GRID_COLOR : 'transparent';
+              if (forecastDays <= 2) return (h === 0 || h === 6 || h === 12 || h === 18) ? GRID_COLOR : 'transparent';
+              return (h === 0 || h === 12) ? GRID_COLOR : 'transparent';
             },
           },
         },
