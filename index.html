@@ -268,6 +268,18 @@ function noaaDate(d) {
   return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 }
 
+/** Returns current time floored to the hour as a Pacific ISO string "YYYY-MM-DDTHH:00"
+ *  — matches the format Open-Meteo uses for wx labels. */
+function nowPacificIso() {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false,
+  });
+  const parts = fmt.formatToParts(new Date());
+  const g = t => parts.find(p => p.type === t).value;
+  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:00`;
+}
+
 function parseNoaaUtc(str) { return new Date(str.replace(' ', 'T') + 'Z'); }
 
 // Convert a UTC Date object to fractional hour (0–24) in America/Los_Angeles
@@ -500,20 +512,30 @@ async function fetchAll() {
 }
 
 function sliceHourly(hourly) {
-  const n = forecastDays * 24;
+  // Start from the current Pacific hour (ISO string comparison is safe for YYYY-MM-DDTHH:MM)
+  const nowIso = nowPacificIso();
+  let startIdx = 0;
+  for (let i = 0; i < hourly.time.length; i++) {
+    if (hourly.time[i] <= nowIso) startIdx = i; else break;
+  }
+  const endIdx = Math.min(startIdx + forecastDays * 24, hourly.time.length);
   return {
-    time: hourly.time.slice(0, n),
-    windspeed_10m:          hourly.windspeed_10m.slice(0, n),
-    winddirection_10m:      hourly.winddirection_10m.slice(0, n),
-    windgusts_10m:          hourly.windgusts_10m.slice(0, n),
-    precipitation_probability: (hourly.precipitation_probability || []).slice(0, n),
+    time:                      hourly.time.slice(startIdx, endIdx),
+    windspeed_10m:             hourly.windspeed_10m.slice(startIdx, endIdx),
+    winddirection_10m:         hourly.winddirection_10m.slice(startIdx, endIdx),
+    windgusts_10m:             hourly.windgusts_10m.slice(startIdx, endIdx),
+    precipitation_probability: (hourly.precipitation_probability || []).slice(startIdx, endIdx),
   };
 }
 
 function sliceTide(tide) {
   if (!tide.predictions?.length) return tide;
-  const cutoff = new Date(Date.now() + forecastDays * 24 * 3600 * 1000);
-  return { ...tide, predictions: tide.predictions.filter(p => parseNoaaUtc(p.t) <= cutoff) };
+  const now    = Date.now();
+  const cutoff = now + forecastDays * 24 * 3600 * 1000;
+  return { ...tide, predictions: tide.predictions.filter(p => {
+    const t = parseNoaaUtc(p.t).getTime();
+    return t >= now && t <= cutoff;
+  })};
 }
 
 // ─── Wind chart (merged speed + direction + daylight) ─────────────────────────
